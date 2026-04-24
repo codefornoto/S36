@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>S36</title>
+    <!-- ファビコンの設置 -->
+    <link rel="icon" href="./images/logo.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Serif+JP:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* ロゴ画像の紺色をアクセントに */
+            --primary: #1A237E; 
+            --secondary: #FFF9C4; /* 淡い黄色 */
+            --accent: #F48FB1; /* 淡いピンク */
+            --blue-light: #B3E5FC; /* 淡い水色 */
+            --text-main: #333;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            /* ピンク、黄色、水色のポップなグラデーション */
+            background: linear-gradient(135deg, var(--blue-light) 0%, var(--secondary) 50%, var(--accent) 100%);
+            background-attachment: fixed;
+            font-family: 'Noto Sans JP', sans-serif;
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* 共通のオーバーレイ画面 (Start, Result, Quiz, Clear) */
+        .screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            /* 背景に溶け込む半透明な白 */
+            background: rgba(255, 255, 255, 0.6);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            transition: opacity 0.3s;
+        }
+        .hidden {
+            display: none !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        h1, h2 { font-family: 'Noto Serif JP', serif; }
+        
+        /* ゲームメインUI */
+        #game-container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ヘッダー：ライフとステージ */
+        .header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .stage-info {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+            background: rgba(255, 255, 255, 0.8);
+            padding: 6px 16px;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .life-info {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--primary);
+            background: rgba(255, 255, 255, 0.8);
+            padding: 6px 16px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .life-info span {
+            color: #E91E63;
+            font-size: 20px;
+        }
+
+        /* ライフバー */
+        .life-bar-container {
+            width: 100%;
+            height: 12px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 25px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #life-bar {
+            height: 100%;
+            /* ライフバーもポップなグラデーションに */
+            background: linear-gradient(90deg, #4FC3F7, #64FFDA);
+            width: 100%;
+            transition: width 1s linear, background 0.3s;
+        }
+        #life-bar.danger { background: linear-gradient(90deg, #FF8A65, #FF5252); }
+
+        /* パズルエリア */
+        #puzzle-board {
+            width: 300px;
+            height: 300px;
+            background: #000; /* 穴は黒色 */
+            position: relative;
+            /* 枠を白く太めにしてポップに */
+            border: 6px solid #fff;
+            border-radius: 8px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1), 0 0 0 4px var(--blue-light);
+            overflow: hidden;
+        }
+
+        .piece {
+            width: 100px;
+            height: 100px;
+            position: absolute;
+            background-size: 300px 300px;
+            border: 1px solid rgba(255,255,255,0.6);
+            box-sizing: border-box;
+            cursor: pointer;
+            transition: transform 0.15s ease-out;
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.1);
+        }
+
+        /* ボタン類 */
+        .btn {
+            background: linear-gradient(45deg, #FF8A65, #FFB74D); /* ピンクオレンジ〜黄色のグラデーション */
+            color: white;
+            border: none;
+            padding: 14px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 40px;
+            cursor: pointer;
+            box-shadow: 0 6px 12px rgba(255, 138, 101, 0.4);
+            transition: transform 0.1s, background 0.2s, box-shadow 0.2s;
+            font-family: inherit;
+            margin-top: 20px;
+        }
+        .btn:hover { 
+            background: linear-gradient(45deg, #F48FB1, #FFCA28); 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 16px rgba(244, 143, 177, 0.5);
+        }
+        .btn:active { transform: translateY(1px); box-shadow: 0 2px 4px rgba(255, 138, 101, 0.4); }
+
+        /* スタート画面 */
+        .instruction {
+            background: #fff;
+            color: var(--primary);
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+
+        /* リザルト画面 */
+        #result-screen { text-align: center; padding: 20px; box-sizing: border-box;}
+        #result-title { font-size: 32px; color: #E91E63; margin-bottom: 10px; font-family: 'Noto Serif JP', serif;}
+        .result-image { width: 160px; height: 160px; border-radius: 12px; border: 4px solid #fff; box-shadow: 0 8px 16px rgba(0,0,0,0.15); margin: 10px auto;}
+        .waka-box {
+            background: rgba(255,255,255,0.85);
+            border: 2px dashed var(--blue-light);
+            padding: 20px 25px;
+            border-radius: 16px;
+            margin: 20px 0;
+            max-width: 400px;
+        }
+        .waka-poem { font-family: 'Noto Serif JP', serif; font-size: 18px; line-height: 2.2; margin-bottom: 15px; font-weight: bold; color: var(--primary);}
+        .waka-info { font-size: 12px; color: #555; text-align: right; }
+        .bonus-text { color: #E91E63; font-weight: bold; font-size: 18px; margin: 10px 0; height: 26px; animation: bounceIn 0.5s;}
+
+        /* クイズ画面 */
+        #quiz-screen h2 { color: var(--primary); margin-bottom: 10px; font-size: 28px;}
+        #quiz-question { font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #333;}
+        .quiz-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            max-width: 400px;
+        }
+        .quiz-option {
+            width: 140px; height: 140px;
+            background-size: cover; background-position: center;
+            border-radius: 16px;
+            border: 4px solid #fff;
+            cursor: pointer;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+            transition: transform 0.15s, border 0.2s;
+        }
+        .quiz-option:hover { transform: scale(1.05); }
+        .quiz-option.correct { border-color: #64FFDA; }
+        .quiz-option.wrong { border-color: #FF5252; opacity: 0.6; }
+        #quiz-result-msg { font-size: 24px; font-weight: bold; margin-top: 20px; height: 35px; }
+
+        /* パーティクルエフェクト用 */
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            border-radius: 50%;
+            z-index: 50;
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ゲームメイン -->
+    <div id="game-container">
+        <div class="header">
+            <div class="stage-info">STAGE <span id="stage-num">1</span>/36</div>
+            <div class="life-info">LIFE <span>♥</span> <span id="life-num">720</span></div>
+        </div>
+        <div class="life-bar-container">
+            <div id="life-bar"></div>
+        </div>
+
+        <div id="puzzle-board">
+            <!-- ピースがJSで追加される -->
+        </div>
+    </div>
+
+    <!-- スタート画面 -->
+    <div id="start-screen" class="screen">
+        <!-- ロゴ画像 (読み込めない場合は文字を表示) -->
+        <img src="./images/logo.png" alt="S36" style="max-width: 80%; max-height: 180px; margin-bottom: 30px;" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
+        <h1 class="hidden" style="color: var(--primary); font-size: 56px; margin-bottom: 30px; text-align:center; font-family: 'Noto Sans JP', sans-serif; letter-spacing: 4px;">S36</h1>
+        
+        <div class="instruction">
+            36種類の秘貝をすべて見つけよう！
+        </div>
+        <button id="btn-start" class="btn">ゲームスタート</button>
+    </div>
+
+    <!-- リザルト（和歌表示）画面 -->
+    <div id="result-screen" class="screen hidden">
+        <div id="result-title">STAGE CLEAR!</div>
+        <div id="result-time" style="font-weight: bold; color: var(--primary);">Clear Time: 12秒</div>
+        <div id="bonus-msg" class="bonus-text"></div>
+        
+        <div id="result-img" class="result-image" style="background-image: url(''); background-size: cover;"></div>
+        
+        <div class="waka-box">
+            <div id="result-name" style="font-weight: bold; color: var(--primary); margin-bottom: 5px; font-size:14px;">すだれ貝 (サツマアカガイ)</div>
+            <div id="result-poem" class="waka-poem">なみかかる　吹上の濱の　すだれ貝<br>風もぞおろす　いそぎひろはん</div>
+            <div class="waka-info">出典: <span id="result-source">山下集</span> / 詠み人: <span id="result-author">西行法師</span></div>
+        </div>
+
+        <button id="btn-next" class="btn">Next Stage</button>
+    </div>
+
+    <!-- クイズ画面 -->
+    <div id="quiz-screen" class="screen hidden">
+        <h2>ボーナスクイズ！</h2>
+        <div id="quiz-question">「すだれ貝」はどれ？</div>
+        <div class="quiz-options" id="quiz-options">
+            <!-- 選択肢が挿入される -->
+        </div>
+        <div id="quiz-result-msg"></div>
+        <button id="btn-quiz-next" class="btn hidden" style="margin-top: 10px;">次へ進む</button>
+    </div>
+
+    <!-- 最終クリア画面 -->
+    <div id="all-clear-screen" class="screen hidden">
+        <h1 style="color: #E91E63; font-size: 44px; margin-bottom: 10px;">ALL CLEAR!!</h1>
+        <p style="font-size: 18px; margin-bottom: 30px; color: var(--primary); font-weight:bold;">36種の歌仙貝をすべて集めました！</p>
+        <div style="font-size: 20px; font-weight: bold; color:#555;">最終スコア (残りライフ)</div>
+        <div id="final-score" style="font-size: 64px; color: #d32f2f; font-weight: bold; margin: 10px 0 30px;">720</div>
+        <button class="btn" onclick="location.reload()">もう一度遊ぶ</button>
+    </div>
+
+    <!-- ゲームオーバー画面 -->
+    <div id="game-over-screen" class="screen hidden">
+        <h1 style="color: var(--primary); font-size: 40px;">GAME OVER</h1>
+        <p style="color: #555; font-weight:bold;">ライフが0になってしまいました...</p>
+        <div style="font-size: 20px; margin-top: 20px; color: #555;">到達ステージ: <span id="go-stage" style="font-weight:bold; color:#E91E63; font-size:24px;"></span></div>
+        <button class="btn" onclick="location.reload()" style="margin-top: 40px;">最初からやり直す</button>
+    </div>
+
+    <script>
+        // ==========================================
+        // データ定義
+        // ==========================================
+        const shellData = [
+            { no: 1, kasenName: 'すだれ貝', name: 'サツマアカガイ', source: '山下集', author: '西行法師', poem: 'なみかかる　吹上の濱の　すだれ貝<br>風もぞおろす　いそぎひろはん' },
+            { no: 2, kasenName: '忘れ貝', name: 'マツヤマワスレ', source: '夫木抄', author: '順徳院', poem: 'みつのはま　いそこす波の　わすれ貝<br>わすれずみする　松かねの声' },
+            { no: 3, kasenName: '梅の花貝', name: 'ヤヘウメ', source: '新後拾遺集', author: '俊頼', poem: '春風に　波やおりけん　みちのくの<br>まがきがしまの　梅のはな貝' },
+            { no: 4, kasenName: '花貝', name: 'チヨノハナガイ', source: '夫木抄', author: '読人不知', poem: 'えだながら　うづまく波の　おらねばや<br>ちりぢりよする　ちよのはながい' },
+            { no: 5, kasenName: 'さくら貝', name: 'サクラガイ', source: '拾遺愚草', author: '定家', poem: '伊勢のうみ　なみの玉よる　さくらがい<br>かひあるうらの　はなの色かな' },
+            { no: 6, kasenName: 'ますほ貝', name: 'ベニガイ', source: '山家集', author: '西行法師', poem: 'しほそむる　ますうの小貝　拾ふとて<br>いろのはまとは　いふにやあるらん' },
+            { no: 7, kasenName: '紫貝', name: 'フジナミガイ', source: '夫木抄', author: '読人不知', poem: 'むらさきの　貝よるうらの　ふじがたは<br>なみのかへるぞ　はなと見へける' },
+            { no: 8, kasenName: '白貝', name: 'カガミガイ', source: '名寄', author: '読人不知', poem: 'はるばると　しららのはまの　しら貝は<br>なつさえふれる　雪かとぞ見る' },
+            { no: 9, kasenName: 'なでしこ貝', name: 'チリボタン', source: '夫木抄', author: '西行法師', poem: 'ちりほしむ　なでしこ貝に　しくいろは<br>やまとからにも　あらじとぞ思ふ' },
+            { no: 10, kasenName: '波間柏貝', name: 'ナミハガシハ', source: '', author: '定塚', poem: '難波女が　なみまがしわを　とるほどに<br>日もくれ袖に　月ぞやどれる' },
+            { no: 11, kasenName: 'きぬた貝', name: 'キヌタアゲマキ', source: '', author: '作者不詳', poem: '契りおきし　衣のうらの　あきふけて<br>うてぬきぬたの　かひもなかりき' },
+            { no: 12, kasenName: '枕貝', name: 'オキナガイ', source: '和訓栞', author: '大江広重', poem: 'ふねとむる　磯のなみぢの　まくらがい<br>かいある夢に　あわざらめやは' },
+            { no: 13, kasenName: 'にしき貝', name: 'ナデシコガイ', source: '', author: '三条院', poem: 'こきまぜに　色をつくして　よる貝は<br>にしきの浦と　みゆるなりけり' },
+            { no: 14, kasenName: 'いろ貝', name: 'ヒバリガイ', source: '末木抄', author: '読人不知', poem: 'いろいろの　かいありてこそ　ひろはめれ<br>ちくさの浜の　あまがまにまに' },
+            { no: 15, kasenName: 'ほら貝', name: 'オウウヤウラク等', source: '夫木抄', author: '寂蓮法', poem: '山ぶしの　ほらふく峰の　夕ぐれに<br>そこともしらめ　すずの上風' },
+            { no: 16, kasenName: '都貝', name: 'マツムシ', source: '夫木抄', author: '伎女河菰', poem: 'ともすれば　こひしきかたの　名におへる<br>みやこの貝をぞ　まづひろいぬる' },
+            { no: 17, kasenName: 'うらうづ貝', name: 'ウラウツガイ', source: '夫木抄', author: '敦忠', poem: '田鶴さわぐ　あしのもとはを　かきわけて<br>うらうづ貝を　ひろいつるかな' },
+            { no: 18, kasenName: 'さたべ貝', name: 'サザエ', source: '山家集', author: '西行法師', poem: 'さたべすむ　せとのいわつぼ　求出て<br>いそしきあまの　けしきなるかな' },
+            { no: 19, kasenName: '千鳥貝', name: 'スズキガイ', source: '新古今集', author: '後白河院', poem: 'はまちどり　ふみおくあとの　つもりなば<br>かひあるうらに　あわざらめやは' },
+            { no: 20, kasenName: '雀貝', name: 'キクスズメ', source: '夫木抄', author: '大江広重', poem: '波よする　竹のとまりの　すずめ貝<br>うれしき世にも　あひにけるかな' },
+            { no: 21, kasenName: 'いたや貝', name: 'イタヤガイ', source: '新撰六帖', author: '信実', poem: 'あやしくも　うらめづらしき　いたや貝<br>とまふくあまの　ならひならずや' },
+            { no: 22, kasenName: 'あこや貝', name: 'カキ', source: '山家集', author: '西行法師', poem: 'あやことる　ゐ貝のからを　つみおきて<br>たからのあとを　見するなりけり' },
+            { no: 23, kasenName: 'あわび貝', name: 'アワビノトコブシ', source: '浦錦', author: '千首牡丹花', poem: 'なべて世の　こひ路にいかで　うつしけん<br>あわびのかいの　おのがおもひを' },
+            { no: 24, kasenName: 'かたし貝', name: 'ユキノカサ', source: '後花園院宸百首', author: '不明', poem: '我袖は　いつかひかたの　かたし貝<br>あふてふことも　なみにしほれて' },
+            { no: 25, kasenName: 'うつせ貝', name: 'キセワタ', source: '続後撰集', author: '好忠', poem: 'なみのうつ　みしまのうらの　うつせがい<br>むなしきからに　われやなるなん' },
+            { no: 26, kasenName: 'みなし貝', name: 'アカテツボ', source: '末木抄', author: '光台院入道', poem: 'かみ島の　いそまのうらに　よる貝の<br>身はいたづらに　なりはてぬはた' },
+            { no: 27, kasenName: 'あさり貝', name: 'ヒメアサリ', source: '新撰六帖', author: '光俊', poem: 'いせのうらの　しほひにあさり　もとめたる<br>かいをそたもつ　身をばすてつつ' },
+            { no: 28, kasenName: 'しお貝', name: 'フジノハナガイ', source: '', author: '師兼', poem: 'いせのうみの　うらのしほがい　ひらひてふ<br>あまちに袖の　ぬれてかわかぬ' },
+            { no: 29, kasenName: 'ものあい貝', name: 'モノアラガイ', source: '続松葉集', author: '宗恵', poem: 'たのもしな　ものあら貝の　つきぬべき<br>法の蓮の　うらにすむ身は' },
+            { no: 30, kasenName: 'かたつ貝', name: 'ネコガイ', source: '海道記', author: '源光行', poem: 'たのみつる　人はなぎさの　かたつがい<br>あわぬにつけて　身をぞうらむる' },
+            { no: 31, kasenName: 'あし貝', name: 'バカガイ', source: '浦錦', author: '津守国冬', poem: '海ばらや　なみにゆらゆゆ　あし貝の<br>かひある国と　なれるかしこさ' },
+            { no: 32, kasenName: 'みぞ貝', name: 'ミゾガイ', source: '夫木抄', author: '俊頼', poem: '江の浜に　みぞ貝ひろう　うない子が<br>たわぶれにたに　とふ人もなし' },
+            { no: 33, kasenName: '蛤貝', name: 'ハマグリ', source: '山家集', author: '西行法師', poem: '今ぞしる　ふたみのうらの　はまぐりを<br>貝あわせとぞ　おもふなりけり' },
+            { no: 34, kasenName: 'しじみ貝', name: 'シジミ', source: '', author: '為尹卿', poem: 'しじみとる　かたたのうらの　あま人よ<br>こまかにいはば　かいぞ有べき' },
+            { no: 35, kasenName: '小貝', name: 'ツノガイ等', source: '夫木抄', author: '源師光', poem: 'いせのうみ　きよきなぎさに　駒とめて<br>都のつとに　小がいひろはん' },
+            { no: 36, kasenName: '千種貝', name: 'チグサガイ', source: '夫木抄', author: '読人不知', poem: '君が代の　ためしと見ゆる　長はまに<br>千種のかいの　かずもつきせじ' }
+        ];
+
+        // ==========================================
+        // ゲーム状態と変数
+        // ==========================================
+        const MAX_STAGE = 36;
+        const INITIAL_LIFE = 720;
+        const EMPTY_INDEX = 8; // ★右下(x:2, y:2) を空きマスとする
+        
+        let currentStage = 1;
+        let totalLife = INITIAL_LIFE;
+        let timerInterval = null;
+        let timeInCurrentStage = 0;
+        let isPlaying = false;
+        
+        // パズルの盤面 (0〜8。EMPTY_INDEXの場所がnull)
+        let board = [];
+        let currentImageUrl = '';
+        let missingPieceElement = null; // クリア時にはめるためのピース
+
+        const DOM = {
+            stageNum: document.getElementById('stage-num'),
+            lifeNum: document.getElementById('life-num'),
+            lifeBar: document.getElementById('life-bar'),
+            board: document.getElementById('puzzle-board'),
+            startScreen: document.getElementById('start-screen'),
+            resultScreen: document.getElementById('result-screen'),
+            quizScreen: document.getElementById('quiz-screen'),
+            allClearScreen: document.getElementById('all-clear-screen'),
+            gameOverScreen: document.getElementById('game-over-screen'),
+            btnStart: document.getElementById('btn-start'),
+            btnNext: document.getElementById('btn-next'),
+            btnQuizNext: document.getElementById('btn-quiz-next')
+        };
+
+        // ==========================================
+        // 画像フォールバック生成
+        // ==========================================
+        function getImageUrl(no, kasenName, callback) {
+            const url = `./images/${no}.png`;
+            const img = new Image();
+            img.onload = () => callback(url);
+            img.onerror = () => {
+                // 画像がない場合はCanvasで和風の代替画像を生成
+                const canvas = document.createElement('canvas');
+                canvas.width = 300; canvas.height = 300;
+                const ctx = canvas.getContext('2d');
+                
+                // 背景グラデーション
+                const grad = ctx.createLinearGradient(0, 0, 300, 300);
+                grad.addColorStop(0, '#fdfbfb');
+                grad.addColorStop(1, '#ebedee');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 300, 300);
+                
+                // 模様（波のような円）
+                ctx.strokeStyle = 'rgba(26, 35, 126, 0.1)';
+                ctx.lineWidth = 4;
+                for(let i=0; i<5; i++) {
+                    ctx.beginPath();
+                    ctx.arc(150, 150, 40 + i*30, 0, Math.PI*2);
+                    ctx.stroke();
+                }
+
+                // テキスト
+                ctx.fillStyle = '#1A237E';
+                ctx.font = 'bold 36px "Noto Serif JP", serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(kasenName, 150, 140);
+                ctx.font = '16px "Noto Sans JP", sans-serif';
+                ctx.fillStyle = '#666';
+                ctx.fillText(`No.${no}`, 150, 180);
+                
+                callback(canvas.toDataURL());
+            };
+            img.src = url;
+        }
+
+        // ==========================================
+        // タイマー管理
+        // ==========================================
+        function updateLifeUI() {
+            DOM.lifeNum.innerText = totalLife;
+            const pct = Math.max(0, (totalLife / INITIAL_LIFE) * 100);
+            DOM.lifeBar.style.width = `${pct}%`;
+            if (pct < 20) DOM.lifeBar.classList.add('danger');
+            else DOM.lifeBar.classList.remove('danger');
+        }
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            isPlaying = true;
+            timeInCurrentStage = 0;
+            timerInterval = setInterval(() => {
+                totalLife--;
+                timeInCurrentStage++;
+                updateLifeUI();
+                
+                if (totalLife <= 0) {
+                    totalLife = 0;
+                    updateLifeUI();
+                    gameOver();
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            isPlaying = false;
+            if (timerInterval) clearInterval(timerInterval);
+        }
+
+        function gameOver() {
+            stopTimer();
+            document.getElementById('go-stage').innerText = currentStage;
+            DOM.gameOverScreen.classList.remove('hidden');
+        }
+
+        // ==========================================
+        // パズルロジック
+        // ==========================================
+        function initStage() {
+            DOM.stageNum.innerText = currentStage;
+            const data = shellData[currentStage - 1];
+            
+            getImageUrl(data.no, data.kasenName, (url) => {
+                currentImageUrl = url;
+                createBoard();
+                startTimer();
+            });
+        }
+
+        function createBoard() {
+            DOM.board.innerHTML = '';
+            // 8番目(右下)がnull
+            board = [0, 1, 2, 3, 4, 5, 6, 7, null]; 
+            missingPieceElement = null;
+            
+            // ピースの生成 (0〜8)
+            for (let i = 0; i < 9; i++) {
+                if (i === EMPTY_INDEX) {
+                    // 完成時にはめる用のピースを作っておく（非表示）
+                    const p = document.createElement('div');
+                    p.className = 'piece';
+                    p.style.backgroundImage = `url(${currentImageUrl})`;
+                    const origX = (i % 3) * 100;
+                    const origY = Math.floor(i / 3) * 100;
+                    p.style.backgroundPosition = `-${origX}px -${origY}px`;
+                    p.style.display = 'none';
+                    p.style.zIndex = '10';
+                    DOM.board.appendChild(p);
+                    missingPieceElement = p;
+                    continue;
+                }
+
+                const piece = document.createElement('div');
+                piece.className = 'piece';
+                piece.dataset.id = i;
+                piece.style.backgroundImage = `url(${currentImageUrl})`;
+                
+                const origX = (i % 3) * 100;
+                const origY = Math.floor(i / 3) * 100;
+                piece.style.backgroundPosition = `-${origX}px -${origY}px`;
+                
+                // クリックイベント
+                piece.addEventListener('click', () => handlePieceClick(i));
+                
+                DOM.board.appendChild(piece);
+            }
+
+            // シャッフル
+            shuffleBoard();
+            renderBoard();
+        }
+
+        function shuffleBoard() {
+            let emptyPos = EMPTY_INDEX;
+            // 150回ランダムに移動してシャッフル
+            let prevEmpty = -1;
+            for (let i = 0; i < 150; i++) {
+                const moves = getValidMoves(emptyPos);
+                // 直前に戻る動きを避ける（可能な場合）
+                const validMoves = moves.filter(m => m !== prevEmpty);
+                const nextPos = validMoves.length > 0 ? validMoves[Math.floor(Math.random() * validMoves.length)] : moves[0];
+                
+                // swap
+                const pieceId = board[nextPos];
+                board[emptyPos] = pieceId;
+                board[nextPos] = null;
+                
+                prevEmpty = emptyPos;
+                emptyPos = nextPos;
+            }
+        }
+
+        function getValidMoves(idx) {
+            const moves = [];
+            const x = idx % 3;
+            const y = Math.floor(idx / 3);
+            if (x > 0) moves.push(idx - 1); // 左
+            if (x < 2) moves.push(idx + 1); // 右
+            if (y > 0) moves.push(idx - 3); // 上
+            if (y < 2) moves.push(idx + 3); // 下
+            return moves;
+        }
+
+        function renderBoard() {
+            for (let i = 0; i < 9; i++) {
+                const pieceId = board[i];
+                if (pieceId !== null) {
+                    // IDからDOM要素を探す
+                    const el = DOM.board.querySelector(`.piece[data-id='${pieceId}']`);
+                    const x = (i % 3) * 100;
+                    const y = Math.floor(i / 3) * 100;
+                    el.style.transform = `translate(${x}px, ${y}px)`;
+                }
+            }
+        }
+
+        function handlePieceClick(pieceId) {
+            if (!isPlaying) return;
+            
+            const currentIdx = board.indexOf(pieceId);
+            const emptyIdx = board.indexOf(null);
+            
+            const validMoves = getValidMoves(emptyIdx);
+            if (validMoves.includes(currentIdx)) {
+                // 移動可能
+                board[emptyIdx] = pieceId;
+                board[currentIdx] = null;
+                renderBoard();
+                checkClear();
+            }
+        }
+
+        // ==========================================
+        // クリア判定とエフェクト
+        // ==========================================
+        function checkClear() {
+            let isClear = true;
+            for (let i = 0; i < 9; i++) {
+                if (i === EMPTY_INDEX) {
+                    if (board[i] !== null) isClear = false;
+                } else {
+                    if (board[i] !== i) isClear = false;
+                }
+            }
+
+            if (isClear) {
+                stopTimer();
+                
+                // 欠けていたピースをはめる
+                const x = (EMPTY_INDEX % 3) * 100;
+                const y = Math.floor(EMPTY_INDEX / 3) * 100;
+                missingPieceElement.style.transform = `translate(${x}px, ${y}px)`;
+                missingPieceElement.style.display = 'block';
+                
+                // すこし間を置いてエフェクト
+                setTimeout(() => {
+                    playClearEffect();
+                }, 200);
+            }
+        }
+
+        function playClearEffect() {
+            // スッキリするパーティクルエフェクト
+            const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'];
+            const rect = DOM.board.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            for (let i = 0; i < 50; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                document.body.appendChild(p);
+                
+                const size = Math.random() * 8 + 4;
+                p.style.width = size + 'px';
+                p.style.height = size + 'px';
+                p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                p.style.left = centerX + 'px';
+                p.style.top = centerY + 'px';
+
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * 150 + 50;
+                const tx = Math.cos(angle) * distance;
+                const ty = Math.sin(angle) * distance;
+
+                p.animate([
+                    { transform: 'translate(0,0) scale(1)', opacity: 1 },
+                    { transform: `translate(${tx}px, ${ty}px) scale(0)`, opacity: 0 }
+                ], {
+                    duration: Math.random() * 500 + 500,
+                    easing: 'cubic-bezier(0, .9, .57, 1)',
+                    fill: 'forwards'
+                });
+
+                setTimeout(() => p.remove(), 1000);
+            }
+
+            // 結果画面へ
+            setTimeout(showResult, 1200);
+        }
+
+        // ==========================================
+        // リザルト画面
+        // ==========================================
+        function showResult() {
+            const data = shellData[currentStage - 1];
+            document.getElementById('result-img').style.backgroundImage = `url(${currentImageUrl})`;
+            document.getElementById('result-name').innerText = `${data.kasenName} (${data.name})`;
+            document.getElementById('result-poem').innerHTML = data.poem;
+            document.getElementById('result-source').innerText = data.source || '不明';
+            document.getElementById('result-author').innerText = data.author || '不明';
+            
+            document.getElementById('result-time').innerText = `Clear Time: ${timeInCurrentStage}秒`;
+            
+            const bonusMsg = document.getElementById('bonus-msg');
+            if (timeInCurrentStage <= 10) {
+                bonusMsg.innerText = 'FAST CLEAR BONUS! Life +5';
+                totalLife += 5;
+                updateLifeUI();
+            } else {
+                bonusMsg.innerText = '';
+            }
+
+            DOM.resultScreen.classList.remove('hidden');
+        }
+
+        DOM.btnNext.addEventListener('click', () => {
+            DOM.resultScreen.classList.add('hidden');
+            
+            // 5ステージに1回クイズ
+            if (currentStage % 5 === 0 && currentStage < MAX_STAGE) {
+                showQuiz();
+            } else {
+                nextStage();
+            }
+        });
+
+        function nextStage() {
+            if (currentStage >= MAX_STAGE) {
+                document.getElementById('final-score').innerText = totalLife;
+                DOM.allClearScreen.classList.remove('hidden');
+            } else {
+                currentStage++;
+                initStage();
+            }
+        }
+
+        // ==========================================
+        // クイズ機能
+        // ==========================================
+        function showQuiz() {
+            const optionsContainer = document.getElementById('quiz-options');
+            optionsContainer.innerHTML = '';
+            document.getElementById('quiz-result-msg').innerText = '';
+            DOM.btnQuizNext.classList.add('hidden');
+
+            // これまでクリアした貝の中からランダムに1つ正解を選ぶ
+            const pastData = shellData.slice(0, currentStage);
+            const correctData = pastData[Math.floor(Math.random() * pastData.length)];
+            
+            document.getElementById('quiz-question').innerText = `「${correctData.kasenName}」はどれ？`;
+
+            // 不正解の選択肢を作る（過去のデータから正解以外をランダムに抽出）
+            let others = pastData.filter(d => d.no !== correctData.no);
+            // シャッフル
+            others.sort(() => Math.random() - 0.5);
+            // 3つ抽出（足りなければそのまま）
+            let options = [correctData, ...others.slice(0, 3)];
+            options.sort(() => Math.random() - 0.5); // 選択肢をシャッフル
+
+            let isAnswered = false;
+
+            options.forEach(opt => {
+                const btn = document.createElement('div');
+                btn.className = 'quiz-option';
+                
+                // Canvasフォールバック付きで画像を取得しセット
+                getImageUrl(opt.no, opt.kasenName, (url) => {
+                    btn.style.backgroundImage = `url(${url})`;
+                });
+
+                btn.addEventListener('click', () => {
+                    if (isAnswered) return;
+                    isAnswered = true;
+                    
+                    if (opt.no === correctData.no) {
+                        btn.classList.add('correct');
+                        document.getElementById('quiz-result-msg').innerText = '正解！ Life +10';
+                        document.getElementById('quiz-result-msg').style.color = '#4caf50';
+                        totalLife += 10;
+                        updateLifeUI();
+                    } else {
+                        btn.classList.add('wrong');
+                        document.getElementById('quiz-result-msg').innerText = '残念...';
+                        document.getElementById('quiz-result-msg').style.color = '#f44336';
+                        // 正解の枠を光らせる
+                        const correctIndex = options.findIndex(o => o.no === correctData.no);
+                        optionsContainer.children[correctIndex].classList.add('correct');
+                    }
+                    
+                    DOM.btnQuizNext.classList.remove('hidden');
+                });
+
+                optionsContainer.appendChild(btn);
+            });
+
+            DOM.quizScreen.classList.remove('hidden');
+        }
+
+        DOM.btnQuizNext.addEventListener('click', () => {
+            DOM.quizScreen.classList.add('hidden');
+            nextStage();
+        });
+
+        // ==========================================
+        // イベントリスナー
+        // ==========================================
+        DOM.btnStart.addEventListener('click', () => {
+            DOM.startScreen.classList.add('hidden');
+            updateLifeUI();
+            initStage();
+        });
+
+    </script>
+</body>
+</html>
